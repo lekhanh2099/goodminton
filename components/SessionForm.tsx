@@ -102,7 +102,7 @@ function buildInitialPlayers(
    included: false,
    isGuest: false,
    shareCount: 1,
-   drinkShared: false,
+   drinkShared: true,
    adjustment: "0",
    note: "",
   };
@@ -162,9 +162,14 @@ export function SessionForm({
  const [otherFeeInput, setOtherFeeInput] = useState(
   toInputValue(session?.other_fee),
  );
+
  const [players, setPlayers] = useState<PlayerDraft[]>(() =>
   buildInitialPlayers(members, session),
  );
+
+ const [isPickerOpen, setIsPickerOpen] = useState(false);
+ const [playerSearch, setPlayerSearch] = useState("");
+ const [showOnlySelected, setShowOnlySelected] = useState(false);
 
  const courtFee = toNumber(courtFeeInput);
  const shuttlecockUnitPrice = toNumber(shuttlecockUnitPriceInput);
@@ -236,7 +241,28 @@ export function SessionForm({
   (sum, player) => sum + player.amount,
   0,
  );
- const selectedPlayerCount = includedPlayers.length;
+
+ const selectedPlayers = players.filter((player) => player.included);
+ const selectedPlayerCount = selectedPlayers.length;
+
+ const normalizedPlayerSearch = playerSearch.trim().toLowerCase();
+
+ const pickerPlayers = players.filter((player) => {
+  if (showOnlySelected && !player.included) {
+   return false;
+  }
+
+  if (!normalizedPlayerSearch) {
+   return true;
+  }
+
+  return player.memberName.toLowerCase().includes(normalizedPlayerSearch);
+ });
+
+ const orderedPickerPlayers = [
+  ...pickerPlayers.filter((player) => player.included),
+  ...pickerPlayers.filter((player) => !player.included),
+ ];
 
  function updatePlayer(key: string, patch: Partial<PlayerDraft>) {
   setPlayers((current) =>
@@ -246,29 +272,71 @@ export function SessionForm({
   );
  }
 
+ function setPlayerIncluded(player: PlayerDraft, included: boolean) {
+  updatePlayer(player.key, {
+   included,
+   drinkShared: included ? true : player.drinkShared,
+  });
+ }
+
+ function setAllPickerPlayersIncluded(included: boolean) {
+  const visibleKeys = new Set(pickerPlayers.map((player) => player.key));
+
+  setPlayers((current) =>
+   current.map((player) =>
+    visibleKeys.has(player.key)
+     ? {
+        ...player,
+        included,
+        drinkShared: included ? true : player.drinkShared,
+       }
+     : player,
+   ),
+  );
+ }
+
+ function setSelectedPickerPlayersWater(drinkShared: boolean) {
+  const visibleSelectedKeys = new Set(
+   pickerPlayers
+    .filter((player) => player.included)
+    .map((player) => player.key),
+  );
+
+  setPlayers((current) =>
+   current.map((player) =>
+    visibleSelectedKeys.has(player.key)
+     ? {
+        ...player,
+        drinkShared,
+       }
+     : player,
+   ),
+  );
+ }
+
  function addGuest() {
   const guestNumber = players.filter((player) => player.isGuest).length + 1;
 
-  setPlayers((current) => [
-   ...current,
-   {
-    key: `guest-${Date.now()}`,
-    memberId: "",
-    memberName: `Khách vãng lai ${guestNumber}`,
-    included: true,
-    isGuest: true,
-    shareCount: 1,
-    drinkShared: false,
-    adjustment: "0",
-    note: "",
-   },
-  ]);
+  const guest: PlayerDraft = {
+   key: `guest-${Date.now()}`,
+   memberId: "",
+   memberName: `Khách vãng lai ${guestNumber}`,
+   included: true,
+   isGuest: true,
+   shareCount: 1,
+   drinkShared: true,
+   adjustment: "0",
+   note: "",
+  };
+
+  setPlayers((current) => [...current, guest]);
+  setIsPickerOpen(false);
  }
 
  return (
   <form
    action={formAction}
-   className="flex flex-col gap-4 pb-24 sm:gap-5 sm:pb-0"
+   className="flex flex-col gap-4 pb-28 sm:gap-5 sm:pb-0"
   >
    {session ? (
     <input name="session_id" type="hidden" value={session.id} />
@@ -280,7 +348,7 @@ export function SessionForm({
       {title}
      </h1>
      <p className="text-sm font-medium text-slate-500">
-      Tick người chơi, nhập tiền, hệ thống tự chia.
+      Chọn người chơi bằng bảng chọn, không cần kéo qua toàn bộ danh sách.
      </p>
     </div>
 
@@ -289,6 +357,27 @@ export function SessionForm({
       {state.message}
      </div>
     ) : null}
+
+    <div className="mb-4 rounded-2xl border border-indigo-100 bg-indigo-50 p-3">
+     <div className="flex items-center justify-between gap-3">
+      <div>
+       <div className="text-xs font-black uppercase tracking-wide text-indigo-600">
+        Người chơi
+       </div>
+       <div className="mt-1 text-lg font-black text-indigo-700">
+        {selectedPlayerCount} người tham gia
+       </div>
+      </div>
+
+      <button
+       className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-black text-white shadow-sm"
+       onClick={() => setIsPickerOpen(true)}
+       type="button"
+      >
+       Chọn người
+      </button>
+     </div>
+    </div>
 
     <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
      <label className="field-label">
@@ -458,199 +547,392 @@ export function SessionForm({
    </section>
 
    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
-    <div className="mb-4 flex items-center justify-between gap-3">
+    <div className="mb-4 flex items-start justify-between gap-3">
      <div>
-      <h2 className="text-lg font-black text-slate-950">Người chơi</h2>
+      <h2 className="text-lg font-black text-slate-950">Người đã chọn</h2>
       <p className="mt-1 text-sm font-semibold text-slate-500">
-       Tick người có tham gia.
+       Chỉ người đã tham gia mới hiện ở đây. Muốn thêm người thì bấm “Chọn
+       người”.
       </p>
      </div>
 
      <button
-      className="button-secondary shrink-0"
-      onClick={addGuest}
+      className="button-secondary shrink-0 px-3"
+      onClick={() => setIsPickerOpen(true)}
       type="button"
      >
-      + Khách
+      Chọn người
      </button>
     </div>
 
-    <div className="flex flex-col gap-2">
-     {players.length === 0 ? (
-      <p className="rounded-2xl border border-dashed border-slate-300 p-5 text-center text-sm font-semibold text-slate-500">
-       Chưa có thành viên. Vào trang Thành viên để thêm trước.
-      </p>
-     ) : null}
+    {selectedPlayers.length === 0 ? (
+     <p className="rounded-2xl border border-dashed border-slate-300 p-5 text-center text-sm font-semibold text-slate-500">
+      Chưa chọn ai. Bấm “Chọn người” để tick thành viên tham gia.
+     </p>
+    ) : (
+     <div className="flex flex-col gap-2">
+      {selectedPlayers.map((player) => {
+       const formIndex = includedIndexByKey.get(player.key);
 
-     {players.map((player) => {
-      const formIndex = includedIndexByKey.get(player.key);
-      const isIncluded = typeof formIndex === "number";
-      const amount = amountByPlayerKey.get(player.key) ?? 0;
+       if (typeof formIndex !== "number") {
+        return null;
+       }
 
-      return (
-       <div
-        className={
-         isIncluded
-          ? "rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3"
-          : "rounded-2xl border border-slate-200 bg-white p-3"
-        }
-        key={player.key}
-       >
-        {isIncluded ? (
-         <>
-          <input name="player_index" type="hidden" value={formIndex} />
-          <input
-           name={`member_id_${formIndex}`}
-           type="hidden"
-           value={player.memberId}
-          />
-         </>
-        ) : null}
+       const amount = amountByPlayerKey.get(player.key) ?? 0;
+       const hasCustomSettings =
+        player.shareCount !== 1 ||
+        !player.drinkShared ||
+        toNumber(player.adjustment) !== 0 ||
+        player.note.trim().length > 0;
 
-        <div className="flex items-center gap-3">
+       return (
+        <div
+         className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3"
+         key={player.key}
+        >
+         <input name="player_index" type="hidden" value={formIndex} />
          <input
-          checked={player.included}
-          className="size-5 shrink-0 rounded border-slate-300 accent-indigo-600"
-          onChange={(event) =>
-           updatePlayer(player.key, { included: event.target.checked })
-          }
-          type="checkbox"
+          name={`member_id_${formIndex}`}
+          type="hidden"
+          value={player.memberId}
+         />
+         <input
+          name={`drink_shared_${formIndex}`}
+          type="hidden"
+          value={player.drinkShared ? "on" : ""}
          />
 
-         <div className="min-w-0 flex-1">
-          {player.isGuest && isIncluded ? (
-           <input
-            className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-950 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-            name={`member_name_${formIndex}`}
-            onChange={(event) =>
-             updatePlayer(player.key, { memberName: event.target.value })
-            }
-            required
-            value={player.memberName}
-           />
-          ) : (
-           <>
-            <div
-             className={
-              isIncluded
-               ? "truncate text-sm font-black text-slate-950"
-               : "truncate text-sm font-bold text-slate-500"
+         <div className="flex items-center gap-3">
+          <button
+           className="grid size-9 shrink-0 place-items-center rounded-xl border border-rose-200 bg-white text-sm font-black text-rose-600"
+           onClick={() => setPlayerIncluded(player, false)}
+           type="button"
+          >
+           ×
+          </button>
+
+          <div className="min-w-0 flex-1">
+           {player.isGuest ? (
+            <input
+             className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-950 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+             name={`member_name_${formIndex}`}
+             onChange={(event) =>
+              updatePlayer(player.key, {
+               memberName: event.target.value,
+              })
              }
-            >
-             {player.memberName}
-            </div>
-            <div className="text-xs font-semibold text-slate-400">
-             {player.isGuest ? "Khách vãng lai" : "Thành viên"}
-            </div>
-            {isIncluded ? (
+             required
+             value={player.memberName}
+            />
+           ) : (
+            <>
+             <div className="truncate text-sm font-black text-slate-950">
+              {player.memberName}
+             </div>
              <input
               name={`member_name_${formIndex}`}
               type="hidden"
               value={player.memberName}
              />
-            ) : null}
-           </>
-          )}
-         </div>
+            </>
+           )}
 
-         <div className="shrink-0 text-right">
-          <div
-           className={
-            isIncluded
-             ? "text-sm font-black text-indigo-700"
-             : "text-sm font-black text-slate-300"
-           }
-          >
-           {formatCurrency(amount)}
+           <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-black text-indigo-700">
+             Có tham gia
+            </span>
+
+            {player.drinkShared ? (
+             <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-black text-emerald-700">
+              Có nước
+             </span>
+            ) : (
+             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-500">
+              Không nước
+             </span>
+            )}
+
+            {hasCustomSettings ? (
+             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-black text-amber-700">
+              Đã chỉnh
+             </span>
+            ) : null}
+           </div>
           </div>
 
-          {player.isGuest ? (
-           <button
-            className="mt-1 text-xs font-bold text-rose-600"
-            onClick={() =>
-             setPlayers((current) =>
-              current.filter((item) => item.key !== player.key),
-             )
-            }
-            type="button"
-           >
-            Xóa
-           </button>
-          ) : null}
+          <div className="shrink-0 text-right">
+           <div className="text-sm font-black text-indigo-700">
+            {formatCurrency(amount)}
+           </div>
+
+           {player.isGuest ? (
+            <button
+             className="mt-1 text-xs font-bold text-rose-600"
+             onClick={() =>
+              setPlayers((current) =>
+               current.filter((item) => item.key !== player.key),
+              )
+             }
+             type="button"
+            >
+             Xóa khách
+            </button>
+           ) : null}
+          </div>
          </div>
+
+         <details className="group mt-3">
+          <summary className="flex h-10 cursor-pointer list-none items-center justify-between rounded-xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-700 [&::-webkit-details-marker]:hidden">
+           <span>Tùy chỉnh</span>
+           <span className="text-xs text-slate-400 group-open:hidden">Mở</span>
+           <span className="hidden text-xs text-slate-400 group-open:inline">
+            Đóng
+           </span>
+          </summary>
+
+          <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+           <label className="field-label">
+            Tập suất
+            <select
+             className="input"
+             name={`share_count_${formIndex}`}
+             onChange={(event) =>
+              updatePlayer(player.key, {
+               shareCount: Number(event.target.value),
+              })
+             }
+             value={player.shareCount}
+            >
+             <option value={0.5}>0.5</option>
+             <option value={1}>1.0</option>
+             <option value={1.5}>1.5</option>
+             <option value={2}>2.0</option>
+            </select>
+           </label>
+
+           <label className="field-label">
+            Nước
+            <button
+             className={
+              player.drinkShared
+               ? "flex h-11 w-full items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-black text-emerald-700"
+               : "flex h-11 w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-600"
+             }
+             onClick={() =>
+              updatePlayer(player.key, {
+               drinkShared: !player.drinkShared,
+              })
+             }
+             type="button"
+            >
+             {player.drinkShared ? "Có nước" : "Không nước"}
+            </button>
+           </label>
+
+           <label className="field-label">
+            Phụ thu
+            <input
+             className="input"
+             inputMode="numeric"
+             name={`adjustment_${formIndex}`}
+             onChange={(event) =>
+              updatePlayer(player.key, {
+               adjustment: event.target.value,
+              })
+             }
+             placeholder="0"
+             type="number"
+             value={player.adjustment}
+            />
+           </label>
+
+           <label className="field-label">
+            Ghi chú
+            <input
+             className="input"
+             name={`note_${formIndex}`}
+             onChange={(event) =>
+              updatePlayer(player.key, {
+               note: event.target.value,
+              })
+             }
+             placeholder="..."
+             value={player.note}
+            />
+           </label>
+          </div>
+         </details>
+        </div>
+       );
+      })}
+     </div>
+    )}
+   </section>
+
+   {isPickerOpen ? (
+    <div
+     aria-modal="true"
+     className="fixed inset-0 z-40 flex items-end bg-slate-950/40 p-0 sm:items-center sm:justify-center sm:p-4"
+     role="dialog"
+    >
+     <div className="flex max-h-[88vh] w-full flex-col rounded-t-3xl bg-white shadow-2xl sm:max-w-2xl sm:rounded-3xl">
+      <div className="border-b border-slate-200 p-4">
+       <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+         <h2 className="text-lg font-black text-slate-950">Chọn người chơi</h2>
+         <p className="mt-1 text-sm font-semibold text-slate-500">
+          {selectedPlayerCount} / {players.length} người đang được chọn
+         </p>
         </div>
 
-        {isIncluded ? (
-         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <label className="field-label">
-           Tập suất
-           <select
-            className="input"
-            name={`share_count_${formIndex}`}
-            onChange={(event) =>
-             updatePlayer(player.key, {
-              shareCount: Number(event.target.value),
-             })
-            }
-            value={player.shareCount}
-           >
-            <option value={0.5}>0.5</option>
-            <option value={1}>1.0</option>
-            <option value={1.5}>1.5</option>
-            <option value={2}>2.0</option>
-           </select>
-          </label>
-
-          <label className="field-label">
-           Nước
-           <span className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold normal-case tracking-normal text-slate-700">
-            <input
-             checked={player.drinkShared}
-             className="size-4 accent-indigo-600"
-             name={`drink_shared_${formIndex}`}
-             onChange={(event) =>
-              updatePlayer(player.key, { drinkShared: event.target.checked })
-             }
-             type="checkbox"
-            />
-            Có
-           </span>
-          </label>
-
-          <label className="field-label">
-           Phụ thu
-           <input
-            className="input"
-            inputMode="numeric"
-            name={`adjustment_${formIndex}`}
-            onChange={(event) =>
-             updatePlayer(player.key, { adjustment: event.target.value })
-            }
-            placeholder="0"
-            type="number"
-            value={player.adjustment}
-           />
-          </label>
-
-          <label className="field-label">
-           Ghi chú
-           <input
-            className="input"
-            name={`note_${formIndex}`}
-            onChange={(event) =>
-             updatePlayer(player.key, { note: event.target.value })
-            }
-            placeholder="..."
-            value={player.note}
-           />
-          </label>
-         </div>
-        ) : null}
+        <button
+         className="grid size-10 place-items-center rounded-xl border border-slate-200 text-lg font-black text-slate-600"
+         onClick={() => setIsPickerOpen(false)}
+         type="button"
+        >
+         ×
+        </button>
        </div>
-      );
-     })}
+
+       <input
+        className="input"
+        onChange={(event) => setPlayerSearch(event.target.value)}
+        placeholder="Tìm tên thành viên..."
+        type="search"
+        value={playerSearch}
+       />
+
+       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <button
+         className="button-secondary h-10 px-3 text-sm"
+         onClick={() => setAllPickerPlayersIncluded(true)}
+         type="button"
+        >
+         Chọn tất cả
+        </button>
+
+        <button
+         className="button-secondary h-10 px-3 text-sm"
+         onClick={() => setAllPickerPlayersIncluded(false)}
+         type="button"
+        >
+         Bỏ chọn
+        </button>
+
+        <button
+         className="button-secondary h-10 px-3 text-sm"
+         disabled={pickerPlayers.every((player) => !player.included)}
+         onClick={() => setSelectedPickerPlayersWater(true)}
+         type="button"
+        >
+         Có nước
+        </button>
+
+        <button
+         className="button-secondary h-10 px-3 text-sm"
+         disabled={pickerPlayers.every((player) => !player.included)}
+         onClick={() => setSelectedPickerPlayersWater(false)}
+         type="button"
+        >
+         Không nước
+        </button>
+       </div>
+
+       <div className="mt-3 flex items-center justify-between gap-2">
+        <span className="text-xs font-bold text-slate-500">
+         {pickerPlayers.length} kết quả
+        </span>
+
+        <button
+         className={
+          showOnlySelected
+           ? "rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-black text-white"
+           : "rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-600"
+         }
+         onClick={() => setShowOnlySelected((value) => !value)}
+         type="button"
+        >
+         Chỉ đã chọn
+        </button>
+       </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-3">
+       {orderedPickerPlayers.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-slate-300 p-5 text-center text-sm font-semibold text-slate-500">
+         Không tìm thấy thành viên phù hợp.
+        </p>
+       ) : (
+        <div className="grid gap-2">
+         {orderedPickerPlayers.map((player) => (
+          <button
+           className={
+            player.included
+             ? "flex items-center gap-3 rounded-2xl border border-indigo-200 bg-indigo-50 p-3 text-left"
+             : "flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left"
+           }
+           key={player.key}
+           onClick={() => setPlayerIncluded(player, !player.included)}
+           type="button"
+          >
+           <span
+            className={
+             player.included
+              ? "grid size-6 shrink-0 place-items-center rounded-md bg-indigo-600 text-sm font-black text-white"
+              : "grid size-6 shrink-0 place-items-center rounded-md border border-slate-300 bg-white"
+            }
+           >
+            {player.included ? "✓" : ""}
+           </span>
+
+           <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-black text-slate-950">
+             {player.memberName}
+            </span>
+            <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
+             <span className="text-xs font-semibold text-slate-400">
+              {player.isGuest ? "Khách vãng lai" : "Thành viên"}
+             </span>
+
+             {player.included ? (
+              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-black text-indigo-700">
+               Đã chọn
+              </span>
+             ) : null}
+
+             {player.included && player.drinkShared ? (
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-black text-emerald-700">
+               Có nước
+              </span>
+             ) : null}
+            </span>
+           </span>
+          </button>
+         ))}
+        </div>
+       )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 border-t border-slate-200 p-3">
+       <button
+        className="button-secondary h-11"
+        onClick={addGuest}
+        type="button"
+       >
+        + Khách
+       </button>
+
+       <button
+        className="button-primary h-11"
+        onClick={() => setIsPickerOpen(false)}
+        type="button"
+       >
+        Xong
+       </button>
+      </div>
+     </div>
     </div>
-   </section>
+   ) : null}
 
    <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:sticky sm:bottom-4 sm:rounded-2xl sm:border sm:p-3">
     <div className="mx-auto flex max-w-6xl items-center gap-3">
