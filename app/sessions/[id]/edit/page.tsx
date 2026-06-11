@@ -40,9 +40,10 @@ export default async function EditSessionPage({
  ): Promise<SessionFormState> {
   "use server";
 
+  let sessionId: string;
+
   try {
-   await updateSessionWithPlayers(formData);
-   return { ok: true, message: "" };
+   sessionId = await updateSessionWithPlayers(formData);
   } catch (error) {
    return {
     ok: false,
@@ -50,6 +51,8 @@ export default async function EditSessionPage({
      error instanceof Error ? error.message : "Không thể cập nhật buổi chơi.",
    };
   }
+
+  redirect(`/sessions/${sessionId}`);
  }
 
  return (

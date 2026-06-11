@@ -524,10 +524,12 @@ export async function updateSessionWithPlayers(formData: FormData) {
  );
 
  if (insertError) throw new Error(insertError.message);
+
  revalidatePath("/");
  revalidatePath("/sessions");
  revalidatePath(`/sessions/${sessionId}`);
- redirect(`/sessions/${sessionId}`);
+
+ return sessionId;
 }
 
 export async function deleteSession(formData: FormData) {
