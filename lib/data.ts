@@ -8,6 +8,7 @@ import {
  calculatePlayerFees,
  calculateShuttlecockFee,
  type FeePlayerInput,
+ withPlayerPaymentFields,
 } from "@/lib/calculations";
 import {
  clearMemberSession,
@@ -18,6 +19,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type {
  Member,
  Session,
+ SessionPlayer,
  SessionFormState,
  SessionSummary,
  SessionWithPlayers,
@@ -57,7 +59,7 @@ function normalizeLoginName(value: FormDataEntryValue | null) {
 
 function buildSummaries(sessions: SessionWithPlayers[]): SessionSummary[] {
  return sessions.map((session) => {
-  const players = session.session_players ?? [];
+  const players = (session.session_players ?? []).map(withPlayerPaymentFields);
   return {
    ...session,
    players,
@@ -317,7 +319,7 @@ export async function getDashboardData() {
  const unpaidPlayers = sessions
   .flatMap((session) =>
    session.players
-    .filter((player) => !player.paid)
+    .filter((player) => player.remainingAmount > 0)
     .map((player) => ({
      ...player,
      sessionDate: session.date,
@@ -325,16 +327,53 @@ export async function getDashboardData() {
     })),
   )
   .sort((a, b) => b.sessionDate.localeCompare(a.sessionDate));
+ const overpaidPlayers = sessions
+  .flatMap((session) =>
+   session.players
+    .filter((player) => player.balanceAmount > 0)
+    .map((player) => ({
+     ...player,
+     sessionDate: session.date,
+     sessionId: session.id,
+    })),
+  )
+  .sort((a, b) => b.sessionDate.localeCompare(a.sessionDate));
+ const memberBalances = buildMemberBalances(sessions);
 
  return {
   sessions,
   recentSessions: sessions.slice(0, 5),
   unpaidPlayers,
+  overpaidPlayers,
+  memberBalances,
   totalSessions: sessions.length,
   totalAmount: sessions.reduce((sum, session) => sum + session.totalAmount, 0),
   totalPaid: sessions.reduce((sum, session) => sum + session.paidAmount, 0),
   totalUnpaid: sessions.reduce((sum, session) => sum + session.unpaidAmount, 0),
+  totalCredit: sessions.reduce((sum, session) => sum + session.creditAmount, 0),
  };
+}
+
+function buildMemberBalances(sessions: SessionSummary[]) {
+ const balances = new Map<
+  string,
+  { key: string; memberName: string; balance: number }
+ >();
+
+ for (const session of sessions) {
+  for (const player of session.players) {
+   const key = player.member_id ?? `guest:${player.member_name_snapshot}`;
+   const current = balances.get(key) ?? {
+    key,
+    memberName: player.member_name_snapshot,
+    balance: 0,
+   };
+   current.balance += player.paid_amount - player.amount;
+   balances.set(key, current);
+  }
+ }
+
+ return Array.from(balances.values()).sort((a, b) => a.balance - b.balance);
 }
 
 export async function getSessionDetail(id: string) {
@@ -350,7 +389,7 @@ export async function getSessionDetail(id: string) {
 
  return {
   ...session,
-  players: session.session_players ?? [],
+  players: (session.session_players ?? []).map(withPlayerPaymentFields),
   ...summarizePlayers(session.session_players ?? []),
  };
 }
@@ -444,6 +483,9 @@ export async function createSessionWithPlayers(
     drink_shared: player.drinkShared,
     adjustment: player.adjustment,
     amount: player.amount,
+    paid_amount: 0,
+    paid: false,
+    paid_at: null,
     note: player.note,
    })),
   );
@@ -458,7 +500,7 @@ export async function createSessionWithPlayers(
 
  revalidatePath("/");
  revalidatePath("/sessions");
- redirect(`/sessions/${sessionId}`);
+ redirect(`/sessions/${sessionId}?toast=session-saved`);
 }
 
 export async function updateSessionWithPlayers(formData: FormData) {
@@ -481,14 +523,38 @@ export async function updateSessionWithPlayers(formData: FormData) {
    (existingPlayers ?? []) as {
     member_id: string | null;
     paid: boolean;
+    paid_amount?: number | null;
+    amount: number;
     paid_at: string | null;
    }[]
   )
    .filter((player) => player.member_id)
    .map((player) => [
     player.member_id,
-    { paid: player.paid, paid_at: player.paid_at },
+    {
+     paid: player.paid,
+     paid_amount: player.paid_amount ?? (player.paid ? player.amount : 0),
+     paid_at: player.paid_at,
+    },
    ]),
+ );
+ const paidByName = new Map(
+  (
+   (existingPlayers ?? []) as {
+    member_name_snapshot: string;
+    paid: boolean;
+    paid_amount?: number | null;
+    amount: number;
+    paid_at: string | null;
+   }[]
+  ).map((player) => [
+   player.member_name_snapshot,
+   {
+    paid: player.paid,
+    paid_amount: player.paid_amount ?? (player.paid ? player.amount : 0),
+    paid_at: player.paid_at,
+   },
+  ]),
  );
 
  const { error: updateError } = await supabase
@@ -505,9 +571,10 @@ export async function updateSessionWithPlayers(formData: FormData) {
 
  const { error: insertError } = await supabase.from("session_players").insert(
   payload.calculatedPlayers.map((player) => {
-   const paidState = player.memberId
-    ? paidByMember.get(player.memberId)
-    : undefined;
+   const paidState =
+    (player.memberId ? paidByMember.get(player.memberId) : undefined) ??
+    paidByName.get(player.memberName);
+   const paidAmount = paidState?.paid_amount ?? 0;
    return {
     session_id: sessionId,
     member_id: player.memberId,
@@ -516,8 +583,9 @@ export async function updateSessionWithPlayers(formData: FormData) {
     drink_shared: player.drinkShared,
     adjustment: player.adjustment,
     amount: player.amount,
-    paid: paidState?.paid ?? false,
-    paid_at: paidState?.paid_at ?? null,
+    paid_amount: paidAmount,
+    paid: paidAmount >= player.amount,
+    paid_at: paidAmount > 0 ? (paidState?.paid_at ?? new Date().toISOString()) : null,
     note: player.note,
    };
   }),
@@ -543,7 +611,7 @@ export async function deleteSession(formData: FormData) {
  if (error) throw new Error(error.message);
  revalidatePath("/");
  revalidatePath("/sessions");
- redirect("/sessions");
+ redirect("/sessions?toast=session-deleted");
 }
 
 export async function updatePlayerPaidStatus(formData: FormData) {
@@ -551,17 +619,62 @@ export async function updatePlayerPaidStatus(formData: FormData) {
  const playerId = String(formData.get("player_id") ?? "");
  const sessionId = String(formData.get("session_id") ?? "");
  const paid = formData.get("paid") === "true";
+ const amount = toNumber(formData.get("amount"));
+
+ return updatePlayerPaidAmountWithValues({
+  playerId,
+  sessionId,
+  paidAmount: paid ? amount : 0,
+ });
+}
+
+export async function updatePlayerPaidAmount(formData: FormData) {
+ await requireAdmin();
+ const playerId = String(formData.get("player_id") ?? "");
+ const sessionId = String(formData.get("session_id") ?? "");
+ const paidAmount = toNumber(formData.get("paid_amount"));
+
+ return updatePlayerPaidAmountWithValues({ playerId, sessionId, paidAmount });
+}
+
+async function updatePlayerPaidAmountWithValues({
+ playerId,
+ sessionId,
+ paidAmount,
+}: {
+ playerId: string;
+ sessionId: string;
+ paidAmount: number;
+}) {
+ if (paidAmount < 0) {
+  throw new Error("Số tiền đã nhận không được âm.");
+ }
 
  if (!playerId || !sessionId) {
   throw new Error("Thiếu người chơi cần cập nhật.");
  }
 
  const supabase = createSupabaseServerClient();
+ const { data: player, error: fetchError } = await supabase
+  .from("session_players")
+  .select("amount,paid_at")
+  .eq("id", playerId)
+  .single();
+
+ if (fetchError) throw new Error(fetchError.message);
+
+ const existingPlayer = player as Pick<SessionPlayer, "amount" | "paid_at">;
+ const paidAt =
+  paidAmount === 0
+   ? null
+   : existingPlayer.paid_at ?? new Date().toISOString();
+
  const { error } = await supabase
   .from("session_players")
   .update({
-   paid,
-   paid_at: paid ? new Date().toISOString() : null,
+   paid_amount: paidAmount,
+   paid: paidAmount >= existingPlayer.amount,
+   paid_at: paidAt,
   })
   .eq("id", playerId);
 
@@ -569,4 +682,5 @@ export async function updatePlayerPaidStatus(formData: FormData) {
  revalidatePath("/");
  revalidatePath("/sessions");
  revalidatePath(`/sessions/${sessionId}`);
+ redirect(`/sessions/${sessionId}?toast=payment-updated`);
 }

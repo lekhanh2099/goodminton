@@ -52,7 +52,7 @@ export default async function EditSessionPage({
    };
   }
 
-  redirect(`/sessions/${sessionId}`);
+  redirect(`/sessions/${sessionId}?toast=session-saved`);
  }
 
  return (

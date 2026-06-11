@@ -19,6 +19,12 @@ export type CalculatedPlayer = FeePlayerInput & {
   amount: number;
 };
 
+type PaymentPlayer = {
+  amount: number;
+  paid?: boolean;
+  paid_amount?: number | null;
+};
+
 export function calculateShuttlecockFee(unitPrice: number, quantity: number) {
   if (unitPrice < 0) {
     throw new Error("Giá 1 trái cầu không được âm.");
@@ -57,15 +63,56 @@ export function calculatePlayerFees(input: FeeCalculationInput): CalculatedPlaye
   }));
 }
 
-export function summarizePlayers(players: { amount: number; paid: boolean }[]) {
+export function getPlayerPaidAmount(player: PaymentPlayer) {
+  return player.paid_amount ?? (player.paid ? player.amount : 0);
+}
+
+export function getPlayerPaymentStatus(player: PaymentPlayer) {
+  const paidAmount = getPlayerPaidAmount(player);
+
+  if (paidAmount <= 0) {
+    return "unpaid";
+  }
+
+  if (paidAmount < player.amount) {
+    return "partial";
+  }
+
+  if (paidAmount === player.amount) {
+    return "paid";
+  }
+
+  return "overpaid";
+}
+
+export function withPlayerPaymentFields<T extends PaymentPlayer>(player: T) {
+  const paidAmount = getPlayerPaidAmount(player);
+  return {
+    ...player,
+    paid_amount: paidAmount,
+    remainingAmount: Math.max(player.amount - paidAmount, 0),
+    balanceAmount: Math.max(paidAmount - player.amount, 0),
+    paymentStatus: getPlayerPaymentStatus(player),
+  };
+}
+
+export function summarizePlayers(players: PaymentPlayer[]) {
   const totalAmount = players.reduce((sum, player) => sum + player.amount, 0);
-  const paidAmount = players.reduce((sum, player) => sum + (player.paid ? player.amount : 0), 0);
-  const unpaidAmount = totalAmount - paidAmount;
+  const paidAmount = players.reduce((sum, player) => sum + getPlayerPaidAmount(player), 0);
+  const unpaidAmount = players.reduce(
+    (sum, player) => sum + Math.max(player.amount - getPlayerPaidAmount(player), 0),
+    0,
+  );
+  const creditAmount = players.reduce(
+    (sum, player) => sum + Math.max(getPlayerPaidAmount(player) - player.amount, 0),
+    0,
+  );
 
   return {
     totalAmount,
     paidAmount,
     unpaidAmount,
+    creditAmount,
     playerCount: players.length,
     status:
       unpaidAmount === 0 && totalAmount > 0

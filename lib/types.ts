@@ -32,6 +32,7 @@ export type SessionPlayer = {
   drink_shared: boolean;
   adjustment: number;
   amount: number;
+  paid_amount: number;
   paid: boolean;
   paid_at: string | null;
   note: string | null;
@@ -39,15 +40,24 @@ export type SessionPlayer = {
   updated_at: string;
 };
 
+export type PlayerPaymentStatus = "unpaid" | "partial" | "paid" | "overpaid";
+
+export type SessionPlayerWithPayment = SessionPlayer & {
+  remainingAmount: number;
+  balanceAmount: number;
+  paymentStatus: PlayerPaymentStatus;
+};
+
 export type SessionWithPlayers = Session & {
   session_players: SessionPlayer[];
 };
 
 export type SessionSummary = Session & {
-  players: SessionPlayer[];
+  players: SessionPlayerWithPayment[];
   totalAmount: number;
   paidAmount: number;
   unpaidAmount: number;
+  creditAmount: number;
   playerCount: number;
   status: "paid" | "unpaid" | "partial";
 };
