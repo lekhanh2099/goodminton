@@ -72,7 +72,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
      </div>
 
      {currentMember ? <NavTabs isAdmin={isAdmin} /> : null}
-     {currentMember ? <AdminBar compact /> : null}
+     {/* {currentMember ? <AdminBar compact /> : null} */}
 
      {process.env.NODE_ENV === "development" && currentMember ? (
       <div className="w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
