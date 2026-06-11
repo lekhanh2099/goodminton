@@ -6,10 +6,13 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { getCurrentMember, getDashboardData } from "@/lib/data";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { redirect } from "next/navigation";
+import { getFunQuote } from "@/lib/fun-quote";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+ const funQuote = await getFunQuote();
+
  const currentMember = await getCurrentMember();
 
  if (!currentMember) {
@@ -29,6 +32,11 @@ export default async function DashboardPage() {
 
  return (
   <AppShell>
+   <section className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4 shadow-sm">
+    <p className="mt-2 text-sm font-bold leading-relaxed text-indigo-950">
+     “{funQuote.text}”
+    </p>
+   </section>
    <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
     <MetricCard label="Tổng buổi chơi" value={String(data.totalSessions)} />
     <MetricCard label="Tổng tiền" value={formatCurrency(data.totalAmount)} />
