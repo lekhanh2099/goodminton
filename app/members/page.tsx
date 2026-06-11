@@ -15,6 +15,7 @@ import {
 } from "@/lib/data";
 import { formatCurrency } from "@/lib/format";
 import type { Member } from "@/lib/types";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 
 export const dynamic = "force-dynamic";
 
@@ -97,7 +98,6 @@ export default async function MembersPage({ searchParams }: MembersPageProps) {
  });
 
  const activeCount = baseMembers.filter((member) => member.active).length;
- const inactiveCount = baseMembers.filter((member) => !member.active).length;
  const debtCount = baseMembers.filter(
   (member) => (balanceByMemberId.get(member.id) ?? 0) < 0,
  ).length;
@@ -378,24 +378,23 @@ function MemberCard({
         <input className="input" defaultValue={member.note ?? ""} name="note" />
        </label>
 
-       <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row sm:items-center sm:justify-between">
+       <div className="sm:col-span-2">
         <SubmitButton className="button-primary w-full sm:w-auto">
          Lưu chỉnh sửa
         </SubmitButton>
-
-        {member.active ? (
-         <form action={deactivateMember}>
-          <input name="id" type="hidden" value={member.id} />
-          <button
-           className="button-secondary w-full text-rose-600 sm:w-auto"
-           type="submit"
-          >
-           Ngưng hoạt động
-          </button>
-         </form>
-        ) : null}
        </div>
       </form>
+      {member.active ? (
+       <form action={deactivateMember} className="mt-3">
+        <input name="id" type="hidden" value={member.id} />
+        <ConfirmSubmitButton
+         className="button-secondary w-full text-rose-600 sm:w-auto"
+         message={`Ngưng hoạt động thành viên ${member.name}? Người này sẽ không còn hiện trong danh sách chọn người chơi mới.`}
+        >
+         Ngưng hoạt động
+        </ConfirmSubmitButton>
+       </form>
+      ) : null}
      </details>
     </div>
    ) : null}

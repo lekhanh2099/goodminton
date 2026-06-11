@@ -12,6 +12,7 @@ import {
 } from "@/lib/data";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { PlayerPaymentStatus } from "@/lib/types";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 
 export const dynamic = "force-dynamic";
 
@@ -90,9 +91,12 @@ export default async function SessionDetailPage({
 
       <form action={deleteSession}>
        <input name="id" type="hidden" value={session.id} />
-       <button className="button-secondary text-rose-600" type="submit">
+       <ConfirmSubmitButton
+        className="button-secondary text-rose-600"
+        message={`Xóa buổi chơi ${formatDate(session.date)}? Hành động này sẽ xóa toàn bộ người chơi và dữ liệu đóng tiền của buổi này.`}
+       >
         Xóa
-       </button>
+       </ConfirmSubmitButton>
       </form>
      </div>
     ) : null}
