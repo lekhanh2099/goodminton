@@ -3,8 +3,9 @@ import { redirect } from "next/navigation";
 
 import { AppShell } from "@/components/AppShell";
 import { DbError } from "@/components/DbError";
+import { LocalDataSync } from "@/components/LocalDataSync";
 import { StatusBadge } from "@/components/StatusBadge";
-import { getCurrentMember, getDashboardData } from "@/lib/data";
+import { getAllMembers, getCurrentMember, getDashboardData } from "@/lib/data";
 import { getFunQuote } from "@/lib/fun-quote";
 import { formatCurrency, formatDate } from "@/lib/format";
 
@@ -18,9 +19,10 @@ export default async function DashboardPage() {
  }
 
  let data;
+ let members;
 
  try {
-  data = await getDashboardData();
+  [data, members] = await Promise.all([getDashboardData(), getAllMembers()]);
  } catch (error) {
   return (
    <AppShell>
@@ -41,6 +43,13 @@ export default async function DashboardPage() {
 
  return (
   <AppShell>
+   <LocalDataSync
+    members={members}
+    replaceMembers
+    replaceSessions
+    sessions={data.sessions}
+   />
+
    <section className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4 shadow-sm">
     <p className="text-sm font-bold leading-relaxed text-indigo-950">
      “{funQuote.text}”
