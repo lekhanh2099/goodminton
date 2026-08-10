@@ -128,6 +128,64 @@ function isSessionSummary(value: unknown): value is SessionSummary {
  );
 }
 
+function projectMember(member: Member): Member {
+ return {
+  id: member.id,
+  name: member.name,
+  login_name: member.login_name,
+  phone: member.phone,
+  note: member.note,
+  active: member.active,
+  created_at: member.created_at,
+  updated_at: member.updated_at,
+ };
+}
+
+function projectPlayer(player: SessionPlayerWithPayment): SessionPlayerWithPayment {
+ return {
+  id: player.id,
+  session_id: player.session_id,
+  member_id: player.member_id,
+  member_name_snapshot: player.member_name_snapshot,
+  share_count: player.share_count,
+  drink_shared: player.drink_shared,
+  adjustment: player.adjustment,
+  amount: player.amount,
+  paid_amount: player.paid_amount,
+  paid: player.paid,
+  paid_at: player.paid_at,
+  note: player.note,
+  created_at: player.created_at,
+  updated_at: player.updated_at,
+  remainingAmount: player.remainingAmount,
+  balanceAmount: player.balanceAmount,
+  paymentStatus: player.paymentStatus,
+ };
+}
+
+function projectSession(session: SessionSummary): SessionSummary {
+ return {
+  id: session.id,
+  date: session.date,
+  court_fee: session.court_fee,
+  shuttlecock_unit_price: session.shuttlecock_unit_price,
+  shuttlecock_quantity: session.shuttlecock_quantity,
+  shuttlecock_fee: session.shuttlecock_fee,
+  drink_fee: session.drink_fee,
+  other_fee: session.other_fee,
+  note: session.note,
+  created_at: session.created_at,
+  updated_at: session.updated_at,
+  players: session.players.map(projectPlayer),
+  totalAmount: session.totalAmount,
+  paidAmount: session.paidAmount,
+  unpaidAmount: session.unpaidAmount,
+  creditAmount: session.creditAmount,
+  playerCount: session.playerCount,
+  status: session.status,
+ };
+}
+
 function parseSnapshotValue(value: unknown): LocalDataSnapshot {
  if (!isRecord(value)) {
   throw new Error("File backup không đúng định dạng.");
@@ -152,8 +210,8 @@ function parseSnapshotValue(value: unknown): LocalDataSnapshot {
  return {
   schemaVersion: LOCAL_DATA_SCHEMA_VERSION,
   updatedAt: value.updatedAt,
-  members: value.members,
-  sessions: value.sessions,
+  members: value.members.map(projectMember),
+  sessions: value.sessions.map(projectSession),
  };
 }
 
@@ -179,10 +237,9 @@ export function readLocalData(): LocalDataSnapshot {
   return emptySnapshot();
  }
 
- const raw = window.localStorage.getItem(LOCAL_DATA_STORAGE_KEY);
- if (!raw) return emptySnapshot();
-
  try {
+  const raw = window.localStorage.getItem(LOCAL_DATA_STORAGE_KEY);
+  if (!raw) return emptySnapshot();
   return parseSnapshotValue(JSON.parse(raw));
  } catch {
   return emptySnapshot();
@@ -196,21 +253,23 @@ export function saveLocalSnapshot({
  replaceSessions = false,
 }: SaveLocalSnapshotInput): LocalDataSnapshot {
  const current = readLocalData();
+ const projectedMembers = members?.map(projectMember);
+ const projectedSessions = sessions?.map(projectSession);
  const snapshot: LocalDataSnapshot = {
   schemaVersion: LOCAL_DATA_SCHEMA_VERSION,
   updatedAt: new Date().toISOString(),
   members:
-   members === undefined
+   projectedMembers === undefined
     ? current.members
     : replaceMembers
-      ? members
-      : mergeById(current.members, members),
+      ? projectedMembers
+      : mergeById(current.members, projectedMembers),
   sessions:
-   sessions === undefined
+   projectedSessions === undefined
     ? current.sessions
     : replaceSessions
-      ? sessions
-      : mergeById(current.sessions, sessions),
+      ? projectedSessions
+      : mergeById(current.sessions, projectedSessions),
  };
 
  writeSnapshot(snapshot);
@@ -236,7 +295,9 @@ export function clearLocalData() {
 }
 
 function csvCell(value: CsvValue) {
- const text = value === null || value === undefined ? "" : String(value);
+ const raw = value === null || value === undefined ? "" : String(value);
+ const text =
+  typeof value === "string" && /^[=+\-@]/.test(raw.trimStart()) ? `'${raw}` : raw;
  return `"${text.replaceAll('"', '""')}"`;
 }
 
@@ -255,11 +316,14 @@ function downloadTextFile(fileName: string, content: string, type: string) {
  document.body.appendChild(link);
  link.click();
  link.remove();
- URL.revokeObjectURL(url);
+ window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function fileDate() {
- return new Date().toISOString().slice(0, 10);
+ const date = new Date();
+ const month = String(date.getMonth() + 1).padStart(2, "0");
+ const day = String(date.getDate()).padStart(2, "0");
+ return `${date.getFullYear()}-${month}-${day}`;
 }
 
 function paymentStatusLabel(status: PlayerPaymentStatus) {
