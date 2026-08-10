@@ -1,8 +1,15 @@
 import Link from "next/link";
 
-import { LocalDataCenter } from "@/components/LocalDataCenter";
+import { LocalWorkspace } from "@/components/LocalWorkspace";
 
-export default function BackupPage() {
+export default async function BackupPage({
+ searchParams,
+}: {
+ searchParams: Promise<{ offline?: string }>;
+}) {
+ const params = await searchParams;
+ const offline = params.offline === "1";
+
  return (
   <div className="min-h-screen bg-slate-50 text-slate-950">
    <header className="border-b border-slate-200 bg-white">
@@ -16,19 +23,19 @@ export default function BackupPage() {
         Goodminton
        </span>
        <span className="block text-xs font-semibold text-slate-500">
-        Dữ liệu trên thiết bị
+        {offline ? "Local mode · chỉ đọc" : "Dữ liệu trên thiết bị"}
        </span>
       </span>
      </Link>
 
      <Link className="button-secondary" href="/">
-      Về ứng dụng
+      Thử app online
      </Link>
     </div>
    </header>
 
    <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-5 sm:gap-6 sm:py-6">
-    <LocalDataCenter />
+    <LocalWorkspace offline={offline} />
    </main>
   </div>
  );
