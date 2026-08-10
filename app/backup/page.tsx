@@ -6,14 +6,15 @@ import { LocalWorkspace } from "@/components/LocalWorkspace";
 export default async function BackupPage({
  searchParams,
 }: {
- searchParams: Promise<{ offline?: string }>;
+ searchParams: Promise<{ offline?: string; recover?: string }>;
 }) {
  const params = await searchParams;
  const offline = params.offline === "1";
+ const recover = params.recover === "1";
 
  return (
   <div className="min-h-screen bg-slate-50 text-slate-950">
-   <LocalBackendSync returnOnlineWhenRecovered={offline} />
+   <LocalBackendSync returnOnlineWhenRecovered={recover} />
 
    <header className="border-b border-slate-200 bg-white">
     <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4">
@@ -26,7 +27,7 @@ export default async function BackupPage({
         Goodminton
        </span>
        <span className="block text-xs font-semibold text-slate-500">
-        {offline ? "Local mode · chỉ đọc" : "Dữ liệu trên thiết bị"}
+        {offline ? "DEV · Local mode · chỉ đọc" : "Dữ liệu trên thiết bị"}
        </span>
       </span>
      </Link>
