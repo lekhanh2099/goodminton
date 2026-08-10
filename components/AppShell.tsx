@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AdminBar } from "@/components/AdminBar";
+import { LocalBackendSync } from "@/components/LocalBackendSync";
 import { NavTabs } from "@/components/NavTabs";
 import { isAdminUnlocked } from "@/lib/admin";
 import { getCurrentMember, logoutMember } from "@/lib/data";
@@ -11,6 +12,8 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
  return (
   <div className="min-h-screen bg-slate-50 text-slate-950">
+   {currentMember ? <LocalBackendSync /> : null}
+
    <header className="border-b border-slate-200 bg-white">
     <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-4">
      <div className="flex items-start justify-between gap-3">
