@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { AppShell } from "@/components/AppShell";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { LocalDataSync } from "@/components/LocalDataSync";
 import { StatusBadge } from "@/components/StatusBadge";
 import { isAdminUnlocked } from "@/lib/admin";
 import {
@@ -12,7 +14,6 @@ import {
 } from "@/lib/data";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { PlayerPaymentStatus } from "@/lib/types";
-import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,8 @@ export default async function SessionDetailPage({
 
  return (
   <AppShell>
+   <LocalDataSync sessions={[session]} />
+
    <section className="card">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
      <div>

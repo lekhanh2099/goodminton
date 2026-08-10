@@ -7,6 +7,7 @@ const navItems = [
  { href: "/", label: "Tổng quan", adminOnly: false },
  { href: "/sessions", label: "Buổi chơi", adminOnly: false },
  { href: "/members", label: "Thành viên", adminOnly: false },
+ { href: "/backup", label: "Dữ liệu máy", adminOnly: false },
  { href: "/sessions/new", label: "Tạo buổi", adminOnly: true },
 ];
 
