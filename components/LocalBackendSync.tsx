@@ -7,15 +7,27 @@ import { importLocalData } from "@/lib/local-data";
 const SYNC_TIMEOUT_MS = 10_000;
 const MIN_SYNC_INTERVAL_MS = 60_000;
 const RECOVERY_POLL_MS = 5 * 60_000;
+const LAST_SYNC_ATTEMPT_KEY = "goodminton:local-sync:last-attempt";
 
 type LocalBackendSyncProps = {
  returnOnlineWhenRecovered?: boolean;
 };
 
+function readLastAttempt() {
+ const value = window.sessionStorage.getItem(LAST_SYNC_ATTEMPT_KEY);
+ if (!value) return 0;
+
+ const parsed = Number(value);
+ return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function writeLastAttempt(value: number) {
+ window.sessionStorage.setItem(LAST_SYNC_ATTEMPT_KEY, String(value));
+}
+
 export function LocalBackendSync({
  returnOnlineWhenRecovered = false,
 }: LocalBackendSyncProps) {
- const lastAttemptRef = useRef(0);
  const syncingRef = useRef(false);
 
  const sync = useCallback(
@@ -23,9 +35,9 @@ export function LocalBackendSync({
    if (syncingRef.current || !navigator.onLine) return;
 
    const now = Date.now();
-   if (!force && now - lastAttemptRef.current < MIN_SYNC_INTERVAL_MS) return;
+   if (!force && now - readLastAttempt() < MIN_SYNC_INTERVAL_MS) return;
 
-   lastAttemptRef.current = now;
+   writeLastAttempt(now);
    syncingRef.current = true;
 
    const controller = new AbortController();
@@ -56,7 +68,7 @@ export function LocalBackendSync({
  );
 
  useEffect(() => {
-  void sync(true);
+  void sync();
 
   const handleOnline = () => void sync(true);
   const handleVisibility = () => {
