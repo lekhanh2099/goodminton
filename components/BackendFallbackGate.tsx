@@ -23,6 +23,9 @@ export function BackendFallbackGate({
 
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 5_000);
+  const fallbackUrl = showDiagnostics
+   ? "/backup?offline=1&recover=1"
+   : "/backup?recover=1";
 
   fetch("/api/backend-health", {
    cache: "no-store",
@@ -36,13 +39,13 @@ export function BackendFallbackGate({
 
     setState("offline");
     if (localAvailable) {
-     window.location.replace("/backup?offline=1");
+     window.location.replace(fallbackUrl);
     }
    })
    .catch(() => {
     setState("offline");
     if (localAvailable) {
-     window.location.replace("/backup?offline=1");
+     window.location.replace(fallbackUrl);
     }
    })
    .finally(() => window.clearTimeout(timeoutId));
@@ -51,7 +54,7 @@ export function BackendFallbackGate({
    window.clearTimeout(timeoutId);
    controller.abort();
   };
- }, []);
+ }, [showDiagnostics]);
 
  if (!showDiagnostics || state !== "offline" || hasLocalData) {
   return null;
