@@ -6,7 +6,13 @@ import { readLocalData } from "@/lib/local-data";
 
 type HealthState = "checking" | "online" | "offline";
 
-export function BackendFallbackGate() {
+type BackendFallbackGateProps = {
+ showDiagnostics?: boolean;
+};
+
+export function BackendFallbackGate({
+ showDiagnostics = false,
+}: BackendFallbackGateProps) {
  const [state, setState] = useState<HealthState>("checking");
  const [hasLocalData, setHasLocalData] = useState(false);
 
@@ -47,7 +53,7 @@ export function BackendFallbackGate() {
   };
  }, []);
 
- if (state !== "offline" || hasLocalData) {
+ if (!showDiagnostics || state !== "offline" || hasLocalData) {
   return null;
  }
 
