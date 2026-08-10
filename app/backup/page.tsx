@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { LocalBackendSync } from "@/components/LocalBackendSync";
 import { LocalWorkspace } from "@/components/LocalWorkspace";
 
 export default async function BackupPage({
@@ -12,6 +13,8 @@ export default async function BackupPage({
 
  return (
   <div className="min-h-screen bg-slate-50 text-slate-950">
+   <LocalBackendSync returnOnlineWhenRecovered={offline} />
+
    <header className="border-b border-slate-200 bg-white">
     <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4">
      <Link className="flex min-w-0 items-center gap-3" href="/">
